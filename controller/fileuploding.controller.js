@@ -1,25 +1,35 @@
 import cloudinary from "../utils/cloudinaryConfig.js";
 import fs from "fs";
+import User from "../user.js";
 
 export const handlefileuploding = async (req, res) => {
   try {
-    const data = req.file;
+    const data = req.files;
+    if (!data) return res.status(400).json({ msg: "no file uplode" });
+    console.log(req.files);
+
+    const uploadPromises = data.map(async (file) => {
+      const result = await cloudinary.uploader.upload(file.path);
+      fs.unlinkSync(file.path); //deleat local file after upload
+      return result.secure_url;
+    });
     console.log(data);
 
-    const url = await cloudinary.uploader.upload(data.path);
-    console.log(url);
+    const upload_Url = await Promise.all(uploadPromises);
 
-    fs.unlink(data.path, (err) => {
-      if (err) {
-        console.log("delete file", err);
-        return;
-      } else {
-        console.log("file delete from project");
-      }
+    const newUser = await User.create({
+      name:req.body.name,
+      email:req.body.email,
+      profileImage:upload_Url[0]
     });
 
-    res.send("file uploded");
-  } catch (error) {
-    console.log(error);
+    res.status(200).json({
+      message:'File uploaded successfully', //mag to postman
+      url: "cloudinary_url"
+
+    });
+  } catch (err) {
+    console.error("file upload fail:", err);
+    res.status(500).json({});
   }
 };
